@@ -13,8 +13,9 @@ import (
 )
 
 type Request struct {
-	Method string
-	Url string
+	Proto string `json:"protocol"`
+	Method string `json:"method"`
+	Url string	`json:"url"`
 }
 
 var requestsChannel chan Request
@@ -29,14 +30,20 @@ func main() {
 		panic(err)
 	}
 
-	server.On("connection", func(so socketio.Socket) {
-
-		log.Println( "Incoming Socket.IO connection" )
+	go func() {
 		for {
 			request := <- requestsChannel
+			log.Println("Emiting", request)
+
 			requestJson, _ := json.Marshal( &request )
-			so.Emit("request", string( requestJson ))
+
+			server.BroadcastTo("requests", "request", string(requestJson))
 		}
+	}()
+
+	server.On("connection", func(so socketio.Socket) {
+		so.Join("requests")
+		log.Println( "Incoming Socket.IO connection" )
 
 		so.On("disconnection", func() {
 			log.Println("Socket.IO disconnection")
@@ -71,6 +78,7 @@ func main() {
 		})
 
 		request := Request{
+			Proto: req.Proto,
 			Method: req.Method,
 			Url: req.URL.String(),
 		}
