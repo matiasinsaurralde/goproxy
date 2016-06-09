@@ -5,20 +5,50 @@ import (
 	"github.com/matiasinsaurralde/goproxy/transport"
 
 	"github.com/googollee/go-socket.io"
+	"encoding/json"
 
 	"log"
 	"flag"
 	"net/http"
 )
 
+type Request struct {
+	Method string
+	Url string
+}
+
+var requestsChannel chan Request
+
 func main() {
 
+	requestsChannel := make(chan Request)
+
 	// Socket.IO setup:
+	server, err := socketio.NewServer(nil)
+	if err != nil {
+		panic(err)
+	}
 
+	server.On("connection", func(so socketio.Socket) {
 
+		log.Println( "Incoming Socket.IO connection" )
+		for {
+			request := <- requestsChannel
+			requestJson, _ := json.Marshal( &request )
+			so.Emit("request", string( requestJson ))
+		}
+
+		so.On("disconnection", func() {
+			log.Println("Socket.IO disconnection")
+		})
+	})
+
+	http.Handle("/socket.io/", server)
+	http.Handle("/", http.FileServer(http.Dir("./assets")))
+
+	go http.ListenAndServe(":8081", nil)
 
 	// Proxy setup:
-
 
 	verbose := flag.Bool("v", false, "should every proxy request be logged to stdout")
 	addr := flag.String("addr", ":8080", "proxy listen address")
@@ -33,13 +63,19 @@ func main() {
 			ctx.UserData, resp, err = tr.DetailedRoundTrip(req)
 			return
 		})
-		log.Println(req, ctx)
-		// logger.LogReq(req, ctx)
+
+		request := Request{
+			Method: req.Method,
+			Url: req.URL.String(),
+		}
+
+		go func() {
+			requestsChannel <- request
+		}()
+
 		return req, nil
 	})
 	proxy.OnResponse().DoFunc(func(resp *http.Response, ctx *goproxy.ProxyCtx) *http.Response {
-		// logger.LogResp(resp, ctx)
-		log.Println(resp, ctx)
 		return resp
 	})
 
