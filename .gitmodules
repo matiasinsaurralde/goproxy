@@ -1,0 +1,4 @@
+[submodule "react"]
+	path = examples/goproxy-socketio/React-Gateway
+	url = https://github.com/carloscarvallo/React-Gateway
+	branch = socketio
