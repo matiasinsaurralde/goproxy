@@ -43,7 +43,13 @@ func main() {
 		})
 	})
 
-	http.Handle("/socket.io/", server)
+	http.HandleFunc("/socket.io/", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+		origin := req.Header.Get("Origin")
+		w.Header().Add("Access-Control-Allow-Origin", origin)
+
+		server.ServeHTTP(w,req)
+	})
 	http.Handle("/", http.FileServer(http.Dir("./assets")))
 
 	go http.ListenAndServe(":8081", nil)
